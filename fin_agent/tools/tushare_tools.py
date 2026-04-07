@@ -127,6 +127,7 @@ def execute_tool_call(tool_name, arguments):
         "get_market_indices_em",
         "search_stock_em",
         "get_sector_stocks_em",
+        "get_hist_data_em",
     }:
         return execute_eastmoney_tool(tool_name, arguments)
     else:

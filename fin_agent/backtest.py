@@ -14,8 +14,25 @@ class BacktestEngine:
         self.portfolio_values = [] # Daily portfolio values
 
     def _fetch_data(self, ts_code, start_date, end_date):
-        """Fetch daily data — historical data source not available."""
-        raise NotImplementedError("Backtest requires a historical data source. Tushare has been removed.")
+        """Fetch daily OHLCV data via AKShare stock_zh_a_hist (东方财富源，前复权)."""
+        import akshare as ak
+        code = ts_code.split('.')[0]
+        df = ak.stock_zh_a_hist(
+            symbol=code,
+            period="daily",
+            start_date=start_date,
+            end_date=end_date,
+            adjust="qfq",
+        )
+        if df is None or df.empty:
+            raise ValueError(f"No historical data for {ts_code} ({start_date}~{end_date})")
+        df = df.rename(columns={
+            "日期": "trade_date", "开盘": "open", "收盘": "close",
+            "最高": "high", "最低": "low", "成交量": "volume",
+            "成交额": "turnover", "涨跌幅": "change_pct",
+        })
+        df["trade_date"] = df["trade_date"].astype(str)
+        return df
 
     def _calculate_indicators(self, df, strategy_config):
         """Calculate indicators needed for the strategy"""

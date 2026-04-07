@@ -35,6 +35,7 @@ class FinAgent:
             "For top gainers (涨幅榜), losers (跌幅榜), most active by volume (成交量榜) or turnover (成交额榜), use 'get_market_movers_em'. "
             "For a market-wide snapshot of SH/SZ/ALL stocks, use 'get_sector_stocks_em'. "
             "For searching a stock by name or partial code, use 'search_stock_em'. "
+            "For historical OHLCV data (日K/周K/月K, 复权行情), use 'get_hist_data_em' (requires ts_code, start_date YYYYMMDD, end_date YYYYMMDD; optional period='daily'/'weekly'/'monthly', adjust=''/'qfq'/'hfq'). "
             "For portfolio queries (e.g. 'my portfolio', '我的持仓', 'holdings'), ALWAYS use 'get_portfolio_status'. "
             "For portfolio management (add/remove position), use 'add_portfolio_position' or 'remove_portfolio_position'. "
             "When setting price alerts with percentages (e.g. 'alert if rises 5%'), you MUST first fetch the current price using 'get_realtime_quote_em', calculate the absolute target price, and then set the alert with that absolute value. "

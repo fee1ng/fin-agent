@@ -381,6 +381,65 @@ def get_sector_stocks_em(market: str = "ALL", limit: int = 20) -> str:
         return f"Error: Failed to parse stock data for market '{market}': {e}"
 
 
+def get_hist_data_em(ts_code: str, start_date: str, end_date: str,
+                     period: str = "daily", adjust: str = "qfq") -> str:
+    """
+    通过 AKShare stock_zh_a_hist 接口获取A股历史行情（东方财富数据源）。
+    返回 OHLCV 日/周/月线数据，支持复权。
+
+    :param ts_code: 股票代码，Tushare格式，如 '600000.SH' 或 '000001.SZ'
+    :param start_date: 开始日期，格式 YYYYMMDD，如 '20230101'
+    :param end_date: 结束日期，格式 YYYYMMDD，如 '20231231'
+    :param period: 周期，'daily' | 'weekly' | 'monthly'，默认 'daily'
+    :param adjust: 复权类型，'' 不复权 | 'qfq' 前复权 | 'hfq' 后复权，默认 'qfq'
+    :return: JSON string with OHLCV records, or error string
+    """
+    try:
+        import akshare as ak
+    except ImportError:
+        return "Error: akshare is not installed. Run: pip install akshare"
+
+    code = ts_code.split('.')[0]
+
+    period_map = {"daily": "daily", "weekly": "weekly", "monthly": "monthly"}
+    period = period_map.get((period or "daily").lower(), "daily")
+    adjust_map = {"": "", "qfq": "qfq", "hfq": "hfq"}
+    adjust = adjust_map.get((adjust or "qfq").lower(), "qfq")
+
+    try:
+        df = ak.stock_zh_a_hist(
+            symbol=code,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            adjust=adjust,
+        )
+    except Exception as e:
+        return f"Error: AKShare fetch failed for '{ts_code}': {e}"
+
+    if df is None or df.empty:
+        return f"Error: No historical data returned for '{ts_code}' ({start_date}~{end_date})."
+
+    df = df.rename(columns={
+        "日期": "trade_date", "开盘": "open", "收盘": "close",
+        "最高": "high", "最低": "low", "成交量": "volume",
+        "成交额": "turnover", "振幅": "amplitude_pct",
+        "涨跌幅": "change_pct", "涨跌额": "change", "换手率": "turnover_rate",
+    })
+    df["trade_date"] = df["trade_date"].astype(str)
+
+    result = {
+        "ts_code": ts_code,
+        "period": period,
+        "adjust": adjust,
+        "start_date": start_date,
+        "end_date": end_date,
+        "count": len(df),
+        "data": df.to_dict(orient="records"),
+    }
+    return json.dumps(result, ensure_ascii=False, indent=2, default=str)
+
+
 # ---------------------------------------------------------------------------
 # Tool schema
 # ---------------------------------------------------------------------------
@@ -493,6 +552,45 @@ EASTMONEY_TOOLS_SCHEMA = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_hist_data_em",
+            "description": (
+                "通过东方财富（AKShare stock_zh_a_hist）获取A股历史行情数据，"
+                "支持日/周/月线，支持前复权(qfq)、后复权(hfq)或不复权。"
+                "返回 OHLCV 及涨跌幅、换手率等字段，适用于技术分析和回测。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ts_code": {
+                        "type": "string",
+                        "description": "股票代码，Tushare格式，如 '600000.SH' 或 '000001.SZ'",
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "开始日期，格式 YYYYMMDD，如 '20230101'",
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "结束日期，格式 YYYYMMDD，如 '20231231'",
+                    },
+                    "period": {
+                        "type": "string",
+                        "enum": ["daily", "weekly", "monthly"],
+                        "description": "K线周期：'daily' 日线（默认）、'weekly' 周线、'monthly' 月线",
+                    },
+                    "adjust": {
+                        "type": "string",
+                        "enum": ["", "qfq", "hfq"],
+                        "description": "复权类型：'' 不复权，'qfq' 前复权（默认），'hfq' 后复权",
+                    },
+                },
+                "required": ["ts_code", "start_date", "end_date"],
+            },
+        },
+    },
 ]
 
 
@@ -514,5 +612,7 @@ def execute_eastmoney_tool(tool_name: str, arguments: dict) -> str:
         return search_stock_em(**arguments)
     elif tool_name == "get_sector_stocks_em":
         return get_sector_stocks_em(**arguments)
+    elif tool_name == "get_hist_data_em":
+        return get_hist_data_em(**arguments)
     else:
         return f"Error: East Money tool '{tool_name}' not recognized."
