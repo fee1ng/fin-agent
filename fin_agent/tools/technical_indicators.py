@@ -1,13 +1,7 @@
 import pandas as pd
 import numpy as np
-import tushare as ts
-from fin_agent.config import Config
 from datetime import datetime, timedelta
 import json
-
-def get_pro():
-    ts.set_token(Config.TUSHARE_TOKEN)
-    return ts.pro_api()
 
 def calculate_macd(df, fast_period=12, slow_period=26, signal_period=9):
     """
@@ -148,86 +142,3 @@ def detect_patterns(df):
         }
     }
 
-def get_technical_indicators(ts_code, start_date=None, end_date=None):
-    """
-    Get technical indicators (MACD, RSI, KDJ, BOLL) for a stock.
-    Returns the last 5 records by default to save token usage, 
-    but calculates based on a longer history to ensure accuracy.
-    """
-    # Fetch enough history for accurate calculation (at least 60-90 days)
-    if not end_date:
-        end_date = datetime.now().strftime('%Y%m%d')
-    
-    # Logic: Fetch ~200 days of data to calculate indicators properly
-    calc_start_date = (datetime.strptime(end_date, '%Y%m%d') - timedelta(days=365)).strftime('%Y%m%d')
-    
-    try:
-        pro = get_pro()
-        df = pro.daily(ts_code=ts_code, start_date=calc_start_date, end_date=end_date)
-        
-        if df.empty:
-            return f"No daily data found for {ts_code} to calculate indicators."
-        
-        # Sort ascending for calculation
-        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
-        
-        # Calculate Indicators
-        df = calculate_macd(df)
-        df = calculate_rsi(df)
-        df = calculate_kdj(df)
-        df = calculate_boll(df)
-        
-        # Format columns
-        # Keep trade_date, close, and indicators
-        cols = ['trade_date', 'close', 'dif', 'dea', 'macd', 'rsi', 'k', 'd', 'j', 'boll_upper', 'boll_mid', 'boll_lower']
-        result_df = df[cols].copy()
-        
-        # Round values
-        for col in cols:
-            if col != 'trade_date':
-                result_df[col] = result_df[col].round(3)
-        
-        # Sort descending again for display (newest first)
-        result_df = result_df.sort_values('trade_date', ascending=False)
-        
-        # Filter by requested start_date if provided
-        if start_date:
-             result_df = result_df[result_df['trade_date'] >= start_date]
-        else:
-             # Default return last 10 days to avoid token limit overflow
-             result_df = result_df.head(10)
-             
-        return result_df.to_json(orient='records', force_ascii=False)
-        
-    except Exception as e:
-        return f"Error calculating technical indicators: {str(e)}"
-
-def get_technical_patterns(ts_code):
-    """
-    Identify technical patterns (Golden Cross, Overbought/Oversold, etc.) for a stock based on latest data.
-    """
-    end_date = datetime.now().strftime('%Y%m%d')
-    calc_start_date = (datetime.strptime(end_date, '%Y%m%d') - timedelta(days=365)).strftime('%Y%m%d')
-    
-    try:
-        pro = get_pro()
-        df = pro.daily(ts_code=ts_code, start_date=calc_start_date, end_date=end_date)
-        
-        if df.empty:
-            return f"No daily data found for {ts_code}."
-            
-        # Sort ascending for calculation
-        df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
-        
-        # Calculate Indicators
-        df = calculate_macd(df)
-        df = calculate_rsi(df)
-        df = calculate_kdj(df)
-        df = calculate_boll(df)
-        
-        # Detect patterns
-        result = detect_patterns(df)
-        
-        return json.dumps(result, ensure_ascii=False)
-    except Exception as e:
-        return f"Error identifying technical patterns: {str(e)}"

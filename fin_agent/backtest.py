@@ -1,9 +1,7 @@
 import pandas as pd
 import numpy as np
-import tushare as ts
 from datetime import datetime, timedelta
 import json
-from fin_agent.config import Config
 from fin_agent.tools.technical_indicators import calculate_macd, calculate_rsi, calculate_kdj, calculate_boll
 
 class BacktestEngine:
@@ -16,23 +14,8 @@ class BacktestEngine:
         self.portfolio_values = [] # Daily portfolio values
 
     def _fetch_data(self, ts_code, start_date, end_date):
-        """Fetch daily data using Tushare"""
-        try:
-            ts.set_token(Config.TUSHARE_TOKEN)
-            pro = ts.pro_api()
-            
-            # Fetch a bit more data before start_date for indicator warm-up
-            warmup_start = (datetime.strptime(start_date, '%Y%m%d') - timedelta(days=60)).strftime('%Y%m%d')
-            
-            df = pro.daily(ts_code=ts_code, start_date=warmup_start, end_date=end_date)
-            if df.empty:
-                raise ValueError(f"No data found for {ts_code}")
-                
-            # Sort ascending
-            df = df.sort_values('trade_date', ascending=True).reset_index(drop=True)
-            return df
-        except Exception as e:
-            raise e
+        """Fetch daily data — historical data source not available."""
+        raise NotImplementedError("Backtest requires a historical data source. Tushare has been removed.")
 
     def _calculate_indicators(self, df, strategy_config):
         """Calculate indicators needed for the strategy"""

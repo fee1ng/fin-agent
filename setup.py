@@ -25,7 +25,7 @@ setup(
     name="fin-agent",
     version=version,
     author="Fin Agent Team",
-    description="A financial analysis agent powered by DeepSeek and Tushare",
+    description="A financial analysis agent for A-share market data",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),

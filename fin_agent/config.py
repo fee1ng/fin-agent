@@ -6,7 +6,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 class Config:
-    TUSHARE_TOKEN = None
     LLM_PROVIDER = None
     LLM_STREAM = True
     
@@ -103,7 +102,6 @@ class Config:
         if os.path.exists(env_path):
             load_dotenv(env_path, override=True)
         
-        cls.TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
         cls.LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek")
         cls.LLM_STREAM = os.getenv("LLM_STREAM", "True").lower() == "true"
         
@@ -133,9 +131,6 @@ class Config:
     def validate(cls):
         cls.load() # Ensure latest env is loaded
         missing = []
-        if not cls.TUSHARE_TOKEN:
-            missing.append("TUSHARE_TOKEN")
-            
         if cls.LLM_PROVIDER == "deepseek":
             if not cls.DEEPSEEK_API_KEY:
                 missing.append("DEEPSEEK_API_KEY")
@@ -211,8 +206,8 @@ class Config:
         return True
 
     @classmethod
-    def update_core_config(cls, tushare_token, provider, deepseek_key, deepseek_base, deepseek_model, openai_key, openai_base, openai_model, wake_up_shortcut):
-        """Update core configuration (Tushare & LLM) in the .env file."""
+    def update_core_config(cls, provider, deepseek_key, deepseek_base, deepseek_model, openai_key, openai_base, openai_model, wake_up_shortcut):
+        """Update core configuration (LLM) in the .env file."""
         env_file = cls.get_env_path()
         
         # Read existing content
@@ -223,7 +218,7 @@ class Config:
         
         # Filter out existing core config (everything except EMAIL_)
         # Actually it's safer to filter OUT the ones we are replacing.
-        keys_to_remove = ["TUSHARE_TOKEN", "LLM_PROVIDER", 
+        keys_to_remove = ["LLM_PROVIDER",
                           "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL",
                           "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL",
                           "WAKE_UP_SHORTCUT"]
@@ -243,7 +238,6 @@ class Config:
         # But appending is safer to not mess up existing structure too much.
         
         core_config = []
-        core_config.append(f"TUSHARE_TOKEN={tushare_token}\n")
         core_config.append(f"LLM_PROVIDER={provider}\n")
         # WAKE_UP_SHORTCUT is now saved to app_config.json, not .env
         
@@ -265,7 +259,6 @@ class Config:
             f.writelines(new_lines)
 
         # Update current env vars
-        os.environ["TUSHARE_TOKEN"] = tushare_token
         os.environ["LLM_PROVIDER"] = provider
         # Remove WAKE_UP_SHORTCUT from env if it exists (so we don't prefer it over json next time if we fallback)
         if "WAKE_UP_SHORTCUT" in os.environ:
@@ -290,9 +283,7 @@ class Config:
     def setup(cls):
         """Interactive setup for environment variables"""
         print("Configuration missing (or reset requested). Starting setup wizard...")
-        
-        tushare_token = input("Enter your Tushare Token: ").strip()
-        
+
         print("\nSelect LLM Provider:")
         print("1. DeepSeek (Default)")
         print("2. Moonshot (Kimi)")
@@ -381,7 +372,7 @@ class Config:
                 openai_model = input("Enter Model Name: ").strip()
         
         # Use update_core_config to save
-        cls.update_core_config(tushare_token, provider, deepseek_key, deepseek_base, deepseek_model, openai_key, openai_base, openai_model, "Ctrl+Alt+Q")
+        cls.update_core_config(provider, deepseek_key, deepseek_base, deepseek_model, openai_key, openai_base, openai_model, "Ctrl+Alt+Q")
             
         print(f"Configuration saved to {cls.get_env_path()}")
         
@@ -395,7 +386,7 @@ class Config:
     def clear(cls):
         """Clear the configuration file (preserves email config)."""
         env_vars_to_clear = [
-            "TUSHARE_TOKEN", "LLM_PROVIDER", 
+            "LLM_PROVIDER",
             "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL",
             "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL",
             "WAKE_UP_SHORTCUT"
@@ -458,7 +449,6 @@ class Config:
                 del os.environ[var]
         
         # Reset class variables
-        cls.TUSHARE_TOKEN = None
         cls.LLM_PROVIDER = None
         cls.DEEPSEEK_API_KEY = None
         cls.DEEPSEEK_BASE_URL = None
