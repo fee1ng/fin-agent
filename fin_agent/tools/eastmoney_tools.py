@@ -450,9 +450,11 @@ EASTMONEY_TOOLS_SCHEMA = [
         "function": {
             "name": "get_realtime_quote_em",
             "description": (
-                "通过东方财富网获取单只A股的实时行情（无需Token）。"
+                "通过东方财富网获取单只A股的当前实时行情快照（无需Token）。"
                 "返回最新价、涨跌幅、涨跌额、最高/最低/开盘价、昨收、成交量、成交额等。"
-                "适用于无法使用Tushare实时数据时的替代方案。"
+                "仅用于查询某只股票的当前/实时价格。"
+                "注意：若用户询问走势、历史涨跌或近期表现，请改用 get_hist_data_em，"
+                "不要同时调用本工具，否则会产生重复分析。"
             ),
             "parameters": {
                 "type": "object",
@@ -557,9 +559,11 @@ EASTMONEY_TOOLS_SCHEMA = [
         "function": {
             "name": "get_hist_data_em",
             "description": (
-                "通过东方财富（AKShare stock_zh_a_hist）获取A股历史行情数据，"
+                "【走势/趋势分析的首选工具】通过东方财富（AKShare stock_zh_a_hist）获取A股历史行情数据。"
                 "支持日/周/月线，支持前复权(qfq)、后复权(hfq)或不复权。"
-                "返回 OHLCV 及涨跌幅、换手率等字段，适用于技术分析和回测。"
+                "返回 OHLCV 及涨跌幅、换手率等完整字段。"
+                "当用户询问走势、涨跌、近N天/周/月表现、K线时，用此工具一次性获取完整区间数据，"
+                "无需额外调用 get_realtime_quote_em（历史数据已包含近期交易日）。"
             ),
             "parameters": {
                 "type": "object",
