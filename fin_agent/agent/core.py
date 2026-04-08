@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 from colorama import Fore, Style
 from fin_agent.config import Config
 from fin_agent.tools.tushare_tools import TOOLS_SCHEMA, execute_tool_call
@@ -17,8 +18,21 @@ from langchain_core.messages import (
 from langchain_openai import ChatOpenAI
 
 
+class AgentState(MessagesState):
+    step_count: int
+    start_time: float
+
+
+FORCED_STOP_MESSAGE = (
+    "已达到最大步数/时间限制，请根据已收集到的信息直接给出最终答案，"
+    "不要再调用任何工具。"
+)
+
+
 class FinAgent:
-    def __init__(self):
+    def __init__(self, max_steps: int = None, max_time: float = None):
+        self.max_steps = max_steps if max_steps is not None else Config.AGENT_MAX_STEPS
+        self.max_time  = max_time  if max_time  is not None else Config.AGENT_MAX_TIME
         self.llm = self._create_llm()
         self.graph = self._build_graph()
         self.history = []
@@ -65,16 +79,17 @@ class FinAgent:
         Build and compile a LangGraph ReAct StateGraph.
 
         Graph topology:
-            START → agent ──(has tool_calls)──→ tools → agent
-                         └──(no tool_calls)──→ END
+            START → agent ──(no tool_calls)──────────────→ END
+                         ──(tool_calls, within limits)───→ tools → agent
+                         ──(tool_calls, limit exceeded)──→ wrap_up → END
         """
         llm_with_tools = self.llm.bind_tools(TOOLS_SCHEMA)
 
-        def agent_node(state: MessagesState) -> dict:
+        def agent_node(state: AgentState) -> dict:
             response = llm_with_tools.invoke(state["messages"])
-            return {"messages": [response]}
+            return {"messages": [response], "step_count": state.get("step_count", 0) + 1}
 
-        def tools_node(state: MessagesState) -> dict:
+        def tools_node(state: AgentState) -> dict:
             last = state["messages"][-1]
             results = []
             for tc in last.tool_calls:
@@ -89,16 +104,29 @@ class FinAgent:
                 ))
             return {"messages": results}
 
-        def should_continue(state: MessagesState) -> str:
-            last = state["messages"][-1]
-            return "tools" if getattr(last, "tool_calls", None) else END
+        def wrap_up_node(state: AgentState) -> dict:
+            messages = list(state["messages"]) + [HumanMessage(content=FORCED_STOP_MESSAGE)]
+            response = self.llm.invoke(messages)
+            return {"messages": [response]}
 
-        builder = StateGraph(MessagesState)
+        def should_continue(state: AgentState) -> str:
+            last = state["messages"][-1]
+            if not getattr(last, "tool_calls", None):
+                return END
+            elapsed = time.time() - state.get("start_time", float("inf"))
+            step_count = state.get("step_count", 0)
+            if step_count >= self.max_steps or elapsed >= self.max_time:
+                return "wrap_up"
+            return "tools"
+
+        builder = StateGraph(AgentState)
         builder.add_node("agent", agent_node)
         builder.add_node("tools", tools_node)
+        builder.add_node("wrap_up", wrap_up_node)
         builder.add_edge(START, "agent")
         builder.add_conditional_edges("agent", should_continue)
         builder.add_edge("tools", "agent")
+        builder.add_edge("wrap_up", END)
         return builder.compile()
 
     # ------------------------------------------------------------------ #
@@ -113,15 +141,16 @@ class FinAgent:
             "You can help users check real-time stock prices, market indices, movers, and manage their portfolio.\\n\\n"
             "### CRITICAL PROTOCOL ###\\n"
             "1. **CHECK TIME FIRST**: When the user mentions relative dates ('today', 'this week', 'recent', 'latest', '最近', '今天', '本周'), call 'get_current_time' first to get the exact date, then compute the required date range.\\n"
-            "2. **ONE FETCH, THEN ANALYZE**: Gather ALL required data in as few tool calls as possible before starting your analysis. Never analyze partial data and then fetch more — collect first, analyze once.\\n"
+            "2. **ONE FETCH, THEN ANALYZE**: Gather ALL required data before writing any analysis. When multiple tools are needed, call them ALL in the same turn and wait for every result — do NOT produce any analysis after a partial result, analyze ONCE with all data in hand.\\n"
             "3. **USE TOOLS**: All market data MUST be obtained via tools. Do not use internal knowledge for prices or market data.\\n\\n"
             "### TOOL SELECTION RULES ###\\n"
             "**Data source is East Money (东方财富), covering A-shares (沪深) only.**\\n\\n"
             "**Rule 1 — Trend / Historical analysis (走势、涨跌、近N天/周/月表现、K线)**\\n"
-            "Use 'get_hist_data_em' with the full date range in a SINGLE call. "
-            "This returns all OHLCV data for the requested period — DO NOT also call 'get_realtime_quote_em'. "
-            "The historical data already covers recent trading days; a separate real-time quote is redundant and will cause duplicate analysis.\\n"
-            "Example: '最近一周走势' → get_current_time → get_hist_data_em(start=7 days ago, end=today) → analyze ALL rows at once.\\n\\n"
+            "MANDATORY: issue BOTH tool calls simultaneously (in the same turn), wait for BOTH results, then write ONE analysis. Never analyze after only one result arrives.\\n"
+            "  - 'get_hist_data_em' with the full date range for OHLCV data\\n"
+            "  - 'get_stock_news_em' for the same stock (default limit=20)\\n"
+            "DO NOT call 'get_realtime_quote_em'; historical data already covers recent trading days.\\n"
+            "Example: '最近一周走势' → get_current_time → {get_hist_data_em + get_stock_news_em} → single combined analysis.\\n\\n"
             "**Rule 2 — Spot price only (当前价、实时价、最新价)**\\n"
             "Use 'get_realtime_quote_em' for a single stock's current price snapshot. "
             "Only use this when the user explicitly asks for the current/real-time price, NOT for trend or historical analysis.\\n\\n"
@@ -129,7 +158,12 @@ class FinAgent:
             "Indices (上证指数, 沪深300, etc.) → 'get_market_indices_em'.\\n"
             "Gainers/losers/volume boards (涨幅榜, 跌幅榜, etc.) → 'get_market_movers_em'.\\n"
             "Broad market snapshot → 'get_sector_stocks_em'.\\n\\n"
-            "**Rule 4 — Other operations**\\n"
+            "**Rule 4 — News & sentiment**\\n"
+            "Individual stock news (舆情、公告、事件) → 'get_stock_news_em(ts_code)'. "
+            "**REQUIRED whenever Rule 1 applies** — always fetch alongside historical price data.\\n"
+            "Market-wide financial headlines (宏观要闻、市场资讯) → 'get_stock_news_main_cx()'. "
+            "Call this when the user asks about macro news or broad market context.\\n\\n"
+            "**Rule 5 — Other operations**\\n"
             "Search stock by name/code → 'search_stock_em'.\\n"
             "Portfolio queries ('my portfolio', '我的持仓') → 'get_portfolio_status'.\\n"
             "Add/remove position → 'add_portfolio_position' / 'remove_portfolio_position'.\\n"
@@ -377,10 +411,15 @@ class FinAgent:
         buffer = ""
         thinking_state = False
         final_content = ""  # accumulates current agent-round text for "answer" event
+        _wrap_up_logged = False
 
         try:
             for event_type, data in self.graph.stream(
-                {"messages": lc_messages},
+                {
+                    "messages": lc_messages,
+                    "step_count": 0,
+                    "start_time": time.time(),
+                },
                 stream_mode=["messages", "updates"],
             ):
 
@@ -389,8 +428,13 @@ class FinAgent:
                     chunk, meta = data
                     node = meta.get("langgraph_node", "")
 
-                    # Agent node: AIMessageChunk from LLM
-                    if node == "agent" and isinstance(chunk, AIMessageChunk):
+                    # Agent / wrap_up node: AIMessageChunk from LLM
+                    if node in ("agent", "wrap_up") and isinstance(chunk, AIMessageChunk):
+                        # Log once when wrap_up starts
+                        if node == "wrap_up" and not _wrap_up_logged:
+                            _wrap_up_logged = True
+                            yield {"type": "log", "content": "已达到执行限制，正在生成最终答案..."}
+
                         # Text content — run through <think> parser
                         if chunk.content:
                             buffer += chunk.content
@@ -403,6 +447,7 @@ class FinAgent:
                                     yield {"type": ev_type, "content": ev_text}
 
                         # Tool-call chunks — real-time display while LLM assembles the call
+                        # (wrap_up uses bare LLM without tools, so tool_call_chunks only from agent)
                         if chunk.tool_call_chunks:
                             # Flush any pending text before tool calls appear
                             if buffer:
@@ -466,6 +511,11 @@ class FinAgent:
                             for msg in msgs:
                                 if isinstance(msg, ToolMessage):
                                     self.history.append(self._tool_msg_to_dict(msg))
+
+                        elif node_name == "wrap_up":
+                            for msg in msgs:
+                                if isinstance(msg, AIMessage):
+                                    self.history.append(self._ai_msg_to_dict(msg))
 
             # Flush any remaining buffer content
             if buffer:

@@ -28,6 +28,10 @@ class Config:
     EMAIL_SENDER = None
     EMAIL_PASSWORD = None
     EMAIL_RECEIVER = None
+
+    # Agent execution limits
+    AGENT_MAX_STEPS: int = 15
+    AGENT_MAX_TIME: float = 120.0
     
     @staticmethod
     def get_config_dir():

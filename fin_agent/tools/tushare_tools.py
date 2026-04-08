@@ -25,6 +25,10 @@ from fin_agent.tools.eastmoney_tools import (
     EASTMONEY_TOOLS_SCHEMA,
     execute_eastmoney_tool,
 )
+from fin_agent.tools.news import (
+    NEWS_TOOLS_SCHEMA,
+    execute_news_tool,
+)
 
 
 def get_current_time():
@@ -71,7 +75,7 @@ BASE_TOOLS_SCHEMA = [
 ]
 
 # Combine all tool schemas
-TOOLS_SCHEMA = BASE_TOOLS_SCHEMA + PORTFOLIO_TOOLS_SCHEMA + SCHEDULER_TOOLS_SCHEMA + PROFILE_TOOLS_SCHEMA + EASTMONEY_TOOLS_SCHEMA
+TOOLS_SCHEMA = BASE_TOOLS_SCHEMA + PORTFOLIO_TOOLS_SCHEMA + SCHEDULER_TOOLS_SCHEMA + PROFILE_TOOLS_SCHEMA + EASTMONEY_TOOLS_SCHEMA + NEWS_TOOLS_SCHEMA
 
 
 def execute_tool_call(tool_name, arguments):
@@ -130,5 +134,10 @@ def execute_tool_call(tool_name, arguments):
         "get_hist_data_em",
     }:
         return execute_eastmoney_tool(tool_name, arguments)
+    elif tool_name in {
+        "get_stock_news_em",
+        "get_stock_news_main_cx",
+    }:
+        return execute_news_tool(tool_name, arguments)
     else:
         return f"Error: Tool '{tool_name}' not found."
