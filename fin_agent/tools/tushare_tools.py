@@ -137,6 +137,7 @@ def execute_tool_call(tool_name, arguments):
     elif tool_name in {
         "get_stock_news_em",
         "get_stock_news_main_cx",
+        "get_stock_info_cjzc_em",
     }:
         return execute_news_tool(tool_name, arguments)
     else:

@@ -97,6 +97,48 @@ def get_stock_news_main_cx(limit: int = 20) -> str:
     return json.dumps(result, ensure_ascii=False, indent=2, default=str)
 
 
+def get_stock_info_cjzc_em(limit: int = 20) -> str:
+    """
+    通过 AKShare stock_info_cjzc_em 接口获取东方财富财经早餐资讯。
+
+    :param limit: 返回条数，默认20，最多50
+    :return: JSON string with news list, or error string
+    """
+    try:
+        import akshare as ak
+    except ImportError:
+        return "Error: akshare is not installed. Run: pip install akshare"
+
+    limit = max(1, min(int(limit), 50))
+
+    try:
+        df = ak.stock_info_cjzc_em()
+    except Exception as e:
+        return f"Error: AKShare fetch failed for stock_info_cjzc_em: {e}"
+
+    if df is None or df.empty:
+        return "Error: No data returned from 东方财富财经早餐."
+
+    df = df.head(limit)
+
+    rename_map = {
+        "标题": "title",
+        "摘要": "summary",
+        "发布时间": "pub_time",
+        "链接": "url",
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+    df = df.astype(str)
+
+    result = {
+        "source": "东方财富财经早餐(eastmoney)",
+        "count": len(df),
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "news": df.to_dict(orient="records"),
+    }
+    return json.dumps(result, ensure_ascii=False, indent=2, default=str)
+
+
 # ---------------------------------------------------------------------------
 # Tool schema
 # ---------------------------------------------------------------------------
@@ -148,6 +190,27 @@ NEWS_TOOLS_SCHEMA = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_info_cjzc_em",
+            "description": (
+                "通过东方财富获取财经早餐资讯（AKShare stock_info_cjzc_em）。"
+                "返回近期财经早餐标题、摘要、发布时间、链接。"
+                "适用于获取每日财经综合资讯，了解宏观市场动态。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "返回条数，1–50，默认20",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -161,5 +224,7 @@ def execute_news_tool(tool_name: str, arguments: dict) -> str:
         return get_stock_news_em(**arguments)
     elif tool_name == "get_stock_news_main_cx":
         return get_stock_news_main_cx(**arguments)
+    elif tool_name == "get_stock_info_cjzc_em":
+        return get_stock_info_cjzc_em(**arguments)
     else:
         return f"Error: News tool '{tool_name}' not recognized."
