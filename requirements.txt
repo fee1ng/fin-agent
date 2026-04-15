@@ -12,3 +12,4 @@ twine>=4.0.0
 akshare>=1.10.0
 langgraph>=0.2.0
 langchain-openai>=0.2.0
+redis>=5.0.0

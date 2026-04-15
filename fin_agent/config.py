@@ -32,6 +32,13 @@ class Config:
     # Agent execution limits
     AGENT_MAX_STEPS: int = 15
     AGENT_MAX_TIME: float = 120.0
+
+    # Redis Config
+    REDIS_ENABLED: bool = False
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str = None
     
     @staticmethod
     def get_config_dir():
@@ -130,6 +137,12 @@ class Config:
         cls.EMAIL_SENDER = os.getenv("EMAIL_SENDER")
         cls.EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
         cls.EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
+
+        cls.REDIS_ENABLED = os.getenv("REDIS_ENABLED", "false").lower() == "true"
+        cls.REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+        cls.REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+        cls.REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+        cls.REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
 
     @classmethod
     def validate(cls):
