@@ -105,9 +105,24 @@ class FinAgent:
             return {"messages": results}
 
         def wrap_up_node(state: AgentState) -> dict:
-            messages = list(state["messages"]) + [HumanMessage(content=FORCED_STOP_MESSAGE)]
+            messages = list(state["messages"])
+            last = messages[-1]
+            placeholder_tool_msgs = []
+            # The last message may be an AIMessage with unresolved tool_calls.
+            # The API requires every tool_call_id to be answered by a ToolMessage
+            # before any subsequent Human/AI message, otherwise it returns 400.
+            if getattr(last, "tool_calls", None):
+                for tc in last.tool_calls:
+                    tm = ToolMessage(
+                        content="Tool call skipped: step/time limit reached.",
+                        tool_call_id=tc["id"],
+                        name=tc["name"],
+                    )
+                    placeholder_tool_msgs.append(tm)
+                    messages.append(tm)
+            messages.append(HumanMessage(content=FORCED_STOP_MESSAGE))
             response = self.llm.invoke(messages)
-            return {"messages": [response]}
+            return {"messages": placeholder_tool_msgs + [response]}
 
         def should_continue(state: AgentState) -> str:
             last = state["messages"][-1]
@@ -521,7 +536,10 @@ class FinAgent:
 
                         elif node_name == "wrap_up":
                             for msg in msgs:
-                                if isinstance(msg, AIMessage):
+                                if isinstance(msg, ToolMessage):
+                                    # Persist placeholder ToolMessages so history stays valid
+                                    self.history.append(self._tool_msg_to_dict(msg))
+                                elif isinstance(msg, AIMessage):
                                     self.history.append(self._ai_msg_to_dict(msg))
 
             # Flush any remaining buffer content

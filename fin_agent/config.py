@@ -104,45 +104,64 @@ class Config:
         except Exception as e:
             print(f"Failed to save app config: {e}")
 
+    @staticmethod
+    def get_redis_config_path():
+        """Get the path to the redis.json config file."""
+        return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config", "redis.json")
+
+    @classmethod
+    def load_redis_config(cls):
+        """Load Redis configuration from config/redis.json."""
+        config_path = cls.get_redis_config_path()
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {}
+
     @classmethod
     def load(cls):
         # Explicitly define path to ensure we are loading the right file
         env_path = cls.get_env_path()
-        
+
         # Load from user config dir
         if os.path.exists(env_path):
             load_dotenv(env_path, override=True)
-        
+
         cls.LLM_PROVIDER = os.getenv("LLM_PROVIDER", "deepseek")
         cls.LLM_STREAM = os.getenv("LLM_STREAM", "True").lower() == "true"
-        
+
         cls.DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
         cls.DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
         cls.DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-        
+
         cls.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
         cls.OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
         cls.OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-        
+
         # Load app config
         app_config = cls.load_app_config()
         cls.WAKE_UP_SHORTCUT = app_config.get("wake_up_shortcut")
-        
+
         # Fallback to env if not in json (migration)
         if not cls.WAKE_UP_SHORTCUT:
              cls.WAKE_UP_SHORTCUT = os.getenv("WAKE_UP_SHORTCUT", "Ctrl+Alt+Q")
-        
+
         cls.EMAIL_SMTP_SERVER = os.getenv("EMAIL_SMTP_SERVER")
         cls.EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT", "465")) if os.getenv("EMAIL_SMTP_PORT") else 465
         cls.EMAIL_SENDER = os.getenv("EMAIL_SENDER")
         cls.EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
         cls.EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER")
 
-        cls.REDIS_ENABLED = os.getenv("REDIS_ENABLED", "false").lower() == "true"
-        cls.REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-        cls.REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-        cls.REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-        cls.REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
+        # Load Redis config from config/redis.json, env vars take precedence
+        redis_cfg = cls.load_redis_config()
+        cls.REDIS_ENABLED = os.getenv("REDIS_ENABLED", str(redis_cfg.get("enabled", False))).lower() == "true"
+        cls.REDIS_HOST = os.getenv("REDIS_HOST", redis_cfg.get("host", "localhost"))
+        cls.REDIS_PORT = int(os.getenv("REDIS_PORT", redis_cfg.get("port", 6379)))
+        cls.REDIS_DB = int(os.getenv("REDIS_DB", redis_cfg.get("db", 0)))
+        cls.REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or redis_cfg.get("password") or None
 
     @classmethod
     def validate(cls):
