@@ -3,9 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pandas as pd
-import tushare as ts
 
-from fin_agent.config import Config
+from fin_agent.datasources import get_provider
 from fin_agent.backtest.registry import get_strategy_class
 
 
@@ -21,10 +20,8 @@ class BacktestEngine:
 
     def _fetch_data(self, ts_code, start_date, end_date):
         try:
-            ts.set_token(Config.TUSHARE_TOKEN)
-            pro = ts.pro_api()
             warmup_start = (datetime.strptime(start_date, "%Y%m%d") - timedelta(days=400)).strftime("%Y%m%d")
-            df = pro.daily(ts_code=ts_code, start_date=warmup_start, end_date=end_date)
+            df = get_provider().get_daily_price(ts_code, start_date=warmup_start, end_date=end_date)
             if df.empty:
                 raise ValueError(f"No data found for {ts_code}")
             return df.sort_values("trade_date", ascending=True).reset_index(drop=True)
@@ -36,7 +33,7 @@ class BacktestEngine:
         strategy_cls = get_strategy_class(strategy_type)
         if getattr(strategy_cls, "requires_multi_asset", False):
             return {
-                "error": "该策略需要多标的截面回测，当前 run_backtest 仅支持单标的 Tushare 日线。",
+                "error": "该策略需要多标的截面回测，当前 run_backtest 仅支持单标的日线。",
                 "strategy": strategy_type,
             }
 

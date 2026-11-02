@@ -11,6 +11,8 @@ _APP_CONFIG_LOCK = threading.RLock()
 
 
 class Config:
+    AGENT_MAX_STEPS: int = 15
+    AGENT_MAX_TIME: float = 120.0
     TUSHARE_TOKEN = None
     LLM_PROVIDER = None
     LLM_STREAM = True
@@ -399,7 +401,7 @@ class Config:
         """Interactive setup for environment variables"""
         print("Configuration missing (or reset requested). Starting setup wizard...")
         
-        tushare_token = input("Enter your Tushare Token: ").strip()
+        tushare_token = input("Enter your Tushare Token (optional for default AKShare; Enter to skip): ").strip()
         
         print("\nSelect LLM Provider:")
         print("1. DeepSeek (Default)")

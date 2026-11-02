@@ -39,6 +39,11 @@ from fin_agent.tools.news_tools import (
 )
 from fin_agent.tools.market_tools import requires_tushare
 from fin_agent.tools import market_tools
+from fin_agent.tools.eastmoney_tools import EASTMONEY_TOOLS_SCHEMA, execute_eastmoney_tool
+from fin_agent.tools.news import NEWS_TOOLS_SCHEMA as MARKET_NEWS_TOOLS_SCHEMA, execute_news_tool
+
+EASTMONEY_TOOL_NAMES = {tool["function"]["name"] for tool in EASTMONEY_TOOLS_SCHEMA}
+MARKET_NEWS_TOOL_NAMES = {tool["function"]["name"] for tool in MARKET_NEWS_TOOLS_SCHEMA}
 
 NEWS_TOOL_FUNCTIONS = {
     "query_notified_news": query_notified_news,
@@ -1963,6 +1968,8 @@ TOOLS_SCHEMA = (
     + SCHEDULER_TOOLS_SCHEMA
     + PROFILE_TOOLS_SCHEMA
     + NEWS_TOOLS_SCHEMA
+    + EASTMONEY_TOOLS_SCHEMA
+    + MARKET_NEWS_TOOLS_SCHEMA
 )
 
 # Helper to execute tool calls
@@ -1994,6 +2001,11 @@ def execute_tool_call(tool_name, arguments):
         arguments = {}
     if not isinstance(arguments, dict):
         return _invalid_tool_arguments(tool_name, "参数必须是对象")
+
+    if tool_name in EASTMONEY_TOOL_NAMES:
+        return execute_eastmoney_tool(tool_name, arguments)
+    if tool_name in MARKET_NEWS_TOOL_NAMES:
+        return execute_news_tool(tool_name, arguments)
 
     if tool_name in NEWS_TOOL_FUNCTIONS:
         function = NEWS_TOOL_FUNCTIONS[tool_name]

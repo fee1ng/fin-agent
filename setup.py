@@ -25,7 +25,7 @@ setup(
     name="fin-agent",
     version=version,
     author="Fin Agent Team",
-    description="A financial analysis agent powered by DeepSeek and Tushare",
+    description="A financial analysis agent for A-share market data",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
@@ -34,7 +34,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=requirements,
     entry_points={
         "console_scripts": [

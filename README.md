@@ -40,6 +40,10 @@ Fin-Agent 是一个基于 **DeepSeek** 等大模型和 **Tushare** 金融数据�
 
 ## 📦 安装
 
+`dev-v1.1.0` 已合并 `dev-v1.0.0` 的 LangGraph / LangChain Agent、东方财富行情和 AkShare 新闻工具。
+核心行情、技术指标和回测默认使用 AkShare，无需 Tushare Token；可选 Tushare 专属工具仍需对应 Token。
+同时保留多组合、新闻订阅监控、多会话存储和新版策略回测。
+
 使用 Docker Desktop 构建和运行：参见 [Docker 运行说明](DOCKER.md)。
 
 ```bash

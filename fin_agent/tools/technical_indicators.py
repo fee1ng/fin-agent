@@ -1,13 +1,9 @@
 import pandas as pd
 import numpy as np
-import tushare as ts
+from fin_agent.datasources import get_provider
 from fin_agent.config import Config
 from datetime import datetime, timedelta
 import json
-
-def get_pro():
-    ts.set_token(Config.TUSHARE_TOKEN)
-    return ts.pro_api()
 
 def calculate_macd(df, fast_period=12, slow_period=26, signal_period=9):
     """
@@ -248,8 +244,7 @@ def get_technical_indicators(ts_code, start_date=None, end_date=None):
     calc_start_date = (datetime.strptime(end_date, '%Y%m%d') - timedelta(days=365)).strftime('%Y%m%d')
     
     try:
-        pro = get_pro()
-        df = pro.daily(ts_code=ts_code, start_date=calc_start_date, end_date=end_date)
+        df = get_provider().get_daily_price(ts_code, start_date=calc_start_date, end_date=end_date)
         
         if df.empty:
             return f"No daily data found for {ts_code} to calculate indicators."
@@ -296,8 +291,7 @@ def get_technical_patterns(ts_code):
     calc_start_date = (datetime.strptime(end_date, '%Y%m%d') - timedelta(days=365)).strftime('%Y%m%d')
     
     try:
-        pro = get_pro()
-        df = pro.daily(ts_code=ts_code, start_date=calc_start_date, end_date=end_date)
+        df = get_provider().get_daily_price(ts_code, start_date=calc_start_date, end_date=end_date)
         
         if df.empty:
             return f"No daily data found for {ts_code}."
