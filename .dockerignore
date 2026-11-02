@@ -1,0 +1,14 @@
+*
+!Dockerfile
+!requirements.txt
+!setup.py
+!VERSION
+!README.md
+!LICENSE
+!MANIFEST.in
+!fin_agent/
+!fin_agent/**
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*

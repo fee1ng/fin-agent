@@ -1,0 +1,18 @@
+services:
+  fin-agent:
+    build: .
+    image: fin-agent:local
+    stdin_open: true
+    tty: true
+    volumes:
+      - fin-agent-data:/data
+  worker:
+    image: fin-agent:local
+    profiles: [worker]
+    command: ["--worker"]
+    restart: unless-stopped
+    volumes:
+      - fin-agent-data:/data
+
+volumes:
+  fin-agent-data:

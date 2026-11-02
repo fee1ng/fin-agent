@@ -40,6 +40,8 @@ Fin-Agent 是一个基于 **DeepSeek** 等大模型和 **Tushare** 金融数据�
 
 ## 📦 安装
 
+使用 Docker Desktop 构建和运行：参见 [Docker 运行说明](DOCKER.md)。
+
 ```bash
 pip install fin-agent
 ```
