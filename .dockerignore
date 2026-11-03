@@ -1,6 +1,12 @@
 *
 !Dockerfile
+!Dockerfile.harness
+!.local/
+.local/**
+!.local/harness-wheels/
+!.local/harness-wheels/*.whl
 !requirements.txt
+!requirements-harness.txt
 !setup.py
 !VERSION
 !README.md

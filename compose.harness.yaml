@@ -1,0 +1,18 @@
+services:
+  harness:
+    image: fin-agent:harness-latest
+    container_name: fin-agent-harness-latest
+    build:
+      context: .
+      dockerfile: Dockerfile.harness
+    environment:
+      FIN_AGENT_ENGINE: harness
+    stdin_open: true
+    tty: true
+    volumes:
+      - harness-data:/data
+
+volumes:
+  harness-data:
+    name: fin-agent-harness-data
+    external: true

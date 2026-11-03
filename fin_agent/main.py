@@ -1,4 +1,5 @@
 import sys
+import json
 import argparse
 import subprocess
 import re
@@ -13,7 +14,7 @@ import colorama
 from colorama import Fore, Style
 from rich.console import Console
 from fin_agent.utils import FinMarkdown
-from fin_agent.agent.core import FinAgent
+from fin_agent.agent.runtime import create_agent
 from fin_agent.config import Config
 from fin_agent.scheduler import TaskScheduler
 
@@ -326,7 +327,7 @@ input("\\nPress Enter to exit...")
 
 
 def run_chat_loop(agent):
-    print(f"{Fore.GREEN}Agent initialized successfully.{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}Agent initialized successfully (engine={getattr(agent, 'engine', 'unknown')}).{Style.RESET_ALL}")
     print("Type 'exit' or 'quit' to end the session.")
     print("Type '/clear' to start a new conversation.")
     print("Type '/save' to save current session manually.")
@@ -392,8 +393,32 @@ def main():
     parser.add_argument("--worker", action="store_true", help="Run in worker mode (scheduler only, no chat interface).")
     parser.add_argument("--cycle", type=int, default=10, help="Scheduler interval in minutes (default: 10, only for worker mode).")
     parser.add_argument("--backend-scheduler", action="store_true", help="Run scheduler in background during interactive mode.")
+    subcommands = parser.add_subparsers(dest="command")
+    trace = subcommands.add_parser("trace", help="Inspect persisted traces offline")
+    trace.add_argument("--trace-dir", default=os.path.join(Config.get_config_dir(), "traces"))
+    actions = trace.add_subparsers(dest="trace_action", required=True)
+    listing = actions.add_parser("list")
+    listing.add_argument("--session")
+    listing.add_argument("--status")
+    listing.add_argument("--tool")
+    listing.add_argument("--since", help="UTC ISO timestamp, inclusive")
+    listing.add_argument("--until", help="UTC ISO timestamp, inclusive")
+    showing = actions.add_parser("show")
+    showing.add_argument("run_id")
+    exporting = actions.add_parser("export")
+    exporting.add_argument("run_id")
+    exporting.add_argument("--output", required=True)
+    actions.add_parser("reindex")
+    actions.add_parser("recover", help="Reconcile abandoned runs without replaying tools")
+    for paginated in (listing, showing):
+        paginated.add_argument("--after", type=int, default=-1)
+        paginated.add_argument("--limit", type=int, default=30)
     
     args = parser.parse_args()
+    if args.command == "trace":
+        from fin_agent.agent.trace_query import run_trace_command
+        print(json.dumps(run_trace_command(args), ensure_ascii=False, indent=2))
+        return
 
     # Check for internal post-upgrade flag via environment variable
     if os.environ.get("FIN_AGENT_POST_UPGRADE"):
@@ -433,7 +458,7 @@ def main():
 
     agent = None
     try:
-        agent = FinAgent()
+        agent = create_agent()
     except ValueError as e:
         error_msg = str(e)
         if "Missing environment variables" in error_msg:
@@ -444,7 +469,7 @@ def main():
         try:
             Config.setup()
             # Retry initialization
-            agent = FinAgent()
+            agent = create_agent()
         except Exception as setup_error:
              print(f"{Fore.RED}Setup failed: {str(setup_error)}{Style.RESET_ALL}")
              return

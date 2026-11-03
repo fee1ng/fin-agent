@@ -1,0 +1,4 @@
+# Official SDK pairs with the exact same runtime version.
+deepseek-harness-sdk==0.2.1rc2
+deepseek-harness-runtime-bin==0.2.1rc2
+mcp==1.30.0

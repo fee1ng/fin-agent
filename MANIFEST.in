@@ -2,3 +2,5 @@ include VERSION
 include LICENSE
 include README.md
 include requirements.txt
+include requirements-harness.txt
+recursive-include fin_agent/agent *.mjs

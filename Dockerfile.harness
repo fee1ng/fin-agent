@@ -1,0 +1,23 @@
+# Offline Docker Desktop build using verified wheels staged on the Windows host.
+ARG BASE_IMAGE=fin-agent:harness-latest
+FROM ${BASE_IMAGE}
+USER root
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FIN_AGENT_ENGINE=harness \
+    XDG_CONFIG_HOME=/data \
+    TZ=Asia/Shanghai
+WORKDIR /app
+COPY .local/harness-wheels /tmp/harness-wheels
+COPY requirements.txt requirements-harness.txt ./
+RUN pip install --no-index --find-links=/tmp/harness-wheels -r requirements.txt -r requirements-harness.txt \
+    && pip check \
+    && rm -rf /tmp/harness-wheels
+COPY setup.py VERSION README.md LICENSE MANIFEST.in ./
+COPY fin_agent ./fin_agent
+RUN pip install --no-cache-dir --no-deps --no-build-isolation . \
+    && mkdir -p /data/fin-agent \
+    && chown -R app:app /data
+USER app
+VOLUME ["/data"]
+ENTRYPOINT ["fin-agent"]
