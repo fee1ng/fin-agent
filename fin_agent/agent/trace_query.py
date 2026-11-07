@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 
 from fin_agent.agent.trace_store import TraceStore, file_lock, fold_runs
 
@@ -16,7 +17,7 @@ class TraceQuery:
         with file_lock(self.store.directory / 'index.lock'):
             receipts = self.store.records()
             run_ids = [r['data']['run_id'] for r in receipts if r['type'] == 'received']
-            with sqlite3.connect(self.index) as db:
+            with closing(sqlite3.connect(self.index)) as db, db:
                 db.execute('CREATE TABLE IF NOT EXISTS runs (seq INTEGER PRIMARY KEY, run_id TEXT UNIQUE, body TEXT)')
                 db.execute('DELETE FROM runs')
                 # Fold one consistent snapshot, not one journal read per run.
@@ -33,7 +34,7 @@ class TraceQuery:
             raise ValueError('limit must be between 1 and 500')
         watermark = self.reindex()
         selected = []
-        with sqlite3.connect(self.index) as db:
+        with closing(sqlite3.connect(self.index)) as db, db:
             rows = db.execute('SELECT seq,body FROM runs WHERE seq>? ORDER BY seq', (after,))
             for sequence, body in rows:
                 run = json.loads(body)

@@ -1,0 +1,41 @@
+# 实现进展
+
+- 已完成：基于访谈形成正式规格；将完整设计拆分为七个有明确阻塞关系的本地任务。
+- 已完成：01，Agent 可选依赖注入、显式只读工具目录、Web 独立提示词及模型/工具实际调用观测。模型与工具关联保留 tool_call_id，同名多调用分别计时，错误和摘要脱敏。
+- 回归修复：默认 CLI 工具执行器仍在调用时解析，以保持动态替换兼容；追踪查询用 closing 显式关闭 SQLite 连接，修复 Windows 文件句柄占用。
+- 验证：项目内 `.local/web-venv/Scripts/python.exe -m unittest tests.test_web_agent tests.test_runtime_selection tests.test_branch_merge tests.test_trace_storage tests.test_harness_flow tests.test_harness_recovery -v`，31 项，30 通过、1 项 Harness SDK 缺失跳过。新增 Web Agent 测试 7 项全部通过。语法检查及 git diff --check 通过。
+- 文档：正式规格和计划共 10 个文档，本地链接检查无断链。
+- 已完成：02，SQLite WAL + Alembic 版本迁移、Argon2 密码哈希、管理员账号命令、可撤销 Cookie 会话、Origin/CSRF 检查、登录限速及用户归属查询。前端 React/Ant Design 登录和会话创建、重命名、删除、分页、失败重试已接入实际 API。
+- 本轮后端验证：`python -m unittest discover -s tests -v` 执行当时全部 40 项，39 通过、1 项原生 Harness SDK 缺失跳过；随后新增管理员 CLI 行为测试单独通过，累计验证 41 项（40 通过、1 跳过）。原始输出在 `.local/web-backend-tests.log`。Web API 验证包含跨用户读写拒绝、角色实时校验、账号禁用和过期、注销与令牌轮换、CSRF、限速和迁移重复执行。
+- 本轮前端验证：`node node_modules/vitest/vitest.mjs run`，3 项交互测试通过；`pnpm run build` 含 TypeScript 检查及 Vite 生产构建通过。测试原始输出 `.local/web-ui-tests.log`。当前首屏产物约 680 kB（gzip 225 kB），构建有体积提示，后续页面增长时按路由拆分。
+- 本轮实际浏览器：隔离测试库中登录 preview 用户，创建会话、重命名为“银行业研究”、刷新确认登录和名称保留，注销返回登录页；截图 `.local/web-auth-preview.jpg`。预览 API 与 Vite 进程均已停止，不是运行中的部署。浏览器验证未调用金融工具或真实模型。
+- 安装包验证：构建 wheel 至 `.local/web-package`，安装到 `.local/web-wheel-check`，隔离源目录导入后执行 Alembic 迁移和 API 健康检查通过；迁移脚本及 Web 入口已打包。新增运行说明 `docs/WEB.md`。
+- 已完成：03。新增 0002 迁移，持久化 runs、messages、conversation_turns、run_events 和 spans；事务串行接受请求，用户作用域幂等键、同会话活动运行唯一索引、队列/每用户上限。独立 Worker 用 spawn 隔离进程执行现有 LangGraph，SSE 仅读取已提交事件，不负责启动或重跑任务。
+- 03 前端：问题输入、生成期间禁用重复发送、Markdown/GFM 表格、工具状态、消息编号和序号去重、最终消息替换草稿。追加 message.interim 事件区分工具前的中间正文与最终答案，避免观测线程提前切换当前消息。CLI 默认事件协议保持原样。
+- 03 数据处理：正文在子进程持久化前过滤跨片段/嵌套 think 标签及已配置凭据，内部推理和原始工具参数不出现在用户事件；追踪保留脱敏参数/摘要，异常诊断仅进入私有 span。最终消息、合法模型上下文和终态事件同事务提交；写入失败不显示完成。
+- 03 验证：完整 `python -m unittest discover -s tests -v` 为 49 项，48 通过、1 项 Harness SDK 缺失跳过，日志 `.local/web-backend-tests.log`。此后新增一项诊断错误不进入用户 SSE 的测试单独通过，增强后的实际进程继续对话及双会话并行测试两项再次通过（累计 50 个不同测试，49 通过、1 跳过）。SQLite 触发器注入终态写入失败后，状态、答案和上下文均回滚；同会话双并发同键只接受一次；两会话确有两个进程，完成前已有部分回答，模型上下文不串号。
+- 03 前端验证：`pnpm test` 六项通过（原会话工作流三项、流式消息 reducer 两项、问题提交到 Markdown 表格回答一项）；`pnpm run build` 类型检查与构建通过。当前主包约 853 kB/gzip 279 kB，有体积提示；jsdom 不提供真实布局，文本框高度计算有 NaN 提示，实际浏览器布局待后续完整验收。日志 `.local/web-ui-tests.log`。
+- 已完成：04。新增 0003 迁移，持久化 worker_state 归属代次/心跳及进程 PID/创建时间、retry_of 和原始问题引用。单调度器 OS 文件锁序列化接管；子进程先等待身份提交后才获得执行许可。重启先停旧身份进程，再事务性中断旧运行和旧排队任务，不自动重放；首次安装前排队的新问题可由首个 Worker 接受。
+- 04 恢复语义：API 单独重启不影响 Worker；超时/退出先确认本地进程树停止再释放槽位；进程身份精确匹配创建时间，避免 PID 复用误杀。失败与中断同时关闭未完成工具 span 并保存部分正文，已提交上下文保持不变。当前已结束运行拒绝旧代次或迟到事件。
+- 04 用户行为：主动重试只针对最近失败/中断运行，新 run_id 关联原问题且不重复创建用户消息；网络模糊失败沿用同一重试幂等键。Last-Event-ID 优先补发，事件已清理或游标不连续时 stream.reset 后读取快照；执行器失联通过心跳状态展示。其他标签删除会话后停止订阅，恢复失败时禁用提交，避免无效连接循环。
+- 04 后端证据：`python -m unittest discover -s tests -v`，60 项，59 通过、1 项 Harness SDK 缺失跳过；`.local/web-backend-tests.log`。其中恢复测试 10 项，覆盖实际调度器进程强杀/子进程回收、单执行器锁、PID 身份错误保护、超时、启动身份写入失败不执行工具、运行写入失败停止全部子进程、主动重试、游标过期、API 生命周期替换及真实网络 API 进程重启。
+- 04 真实网络证据：实际 Uvicorn 子进程提供 HTTP API，客户端登录、提交并保持 SSE 连接暂停读取；强制结束 API 后 Worker 完成；新 API 进程使用相同数据库恢复登录 Cookie、单一运行及最终答案，Last-Event-ID 补发不包含原 queued 事件。日志 `.local/web-network-recovery-tests.log`。模型仍为受控实现，不等于真实供应商验收。
+- 04 前端证据：`pnpm test` 9 项通过，含断网重试同键、过期游标快照替换且零 POST、跨标签删除停止订阅；`pnpm run build` 类型检查与构建通过，主包约 854 kB/gzip 279 kB。jsdom 无真实布局导致文本框高度 NaN 提示尚在，仅作为验证限制记录，实际浏览器完整布局仍属于 07。
+- 已完成：05 管理员筛选、逐调用时间线、耗时和失败详情；06 保留策略、级联删除、一致备份与离线恢复。下一项：07 内网部署与真实供应商验收。
+- 环境：PowerShell PATH 没有 Python/Node。已定位并验证桌面应用附带运行时；本项目虚拟环境为 `.local/web-venv`，已安装 requirements.txt 及 FastAPI/Uvicorn/SQLAlchemy/Alembic/httpx/argon2-cffi。依赖安装进程已成功退出，无需重复安装。Node 路径为 `C:\Users\93120\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe`，版本 v24.22.1。
+- 前端环境：依赖已装入 frontend/node_modules，pnpm-lock.yaml 固定版本，pnpm 11 的 allowBuilds 仅批准 esbuild。开发命令可按 docs/WEB.md 执行。初次受限网络下载失败后已获工具审核允许完成安装，无正在运行的安装进程。
+- 当前完成：01–07 全部完成，剩余计划任务 0 项。用户于 2026-11-07 确认本轮仅需本机 HTTPS 连接，保留内网配置，不要求内网或外网开放。本机镜像构建、HTTPS、真实供应商、实际浏览器和容器备份恢复均已验收。
+- 本文只记录实际执行证据；未完成任务不得提前标记完成。
+- 05 完成证据：管理员运行列表筛选/分页、逐调用时间线、父模型和 tool_call_id、真实耗时、脱敏参数及错误、未知/零用量显示均已实现。后端管理员 API 四项测试通过，前端含管理员三项交互及越权路由验证。
+- 06 完成证据：0005_retention 迁移；终态追踪 30 天、恢复事件 24 小时独立清理，活动任务与上下文保留；删除级联及外部 fsync 删除日志；SQLite 一致备份、SHA256 清单、停机恢复和删除重放。保留/恢复六项测试通过，包括旧登录撤销、主库缺失恢复、校验失败、在线拒绝和删除日志故障不误报成功。
+- 最新完整后端回归：70 项，69 通过，1 项原生 Harness SDK 缺失跳过；日志 `.local/web-backend-tests.log`。新增跨容器共享文件锁后，管理员/保留 10 项再次通过（`.local/web-retention-final.log`）。
+- 最新前端回归：13 项全部通过，包含追踪过期时保留回答和聚合数量。Windows 懒加载曾超过测试默认 1 秒等待，测试等待窗口改为 5 秒后全套通过，未放宽产品行为断言。
+- 07：Docker Desktop 已恢复并核实；用户明确授权复用模型字段，凭据只写入忽略文件，未输出或提交。基础镜像摘要、Linux/Python 3.12 全依赖哈希锁、独立 Compose、TLS/SSE 代理及运维手册已完成。当前主服务在 `https://localhost:8443` 健康运行，仅绑定回环；机构信任证书与正式内网入口未配置。
+- 容器验证修复：Linux spawn 启动 Event 保留至子进程退出；进程停止改为不抢占 multiprocessing 的 waitpid 回收；跨容器 API 存活使用共享卷文件锁；Nginx 定期重解析 Docker DNS，禁用小包发送延后，并缩小 TLS 缓冲。
+- 最终回归：Windows 70 项（69 通过、1 跳过，51.1 秒）；Linux 镜像 70 项（69 通过、1 跳过，37.1 秒）；前端 13 项通过及生产构建通过；wheel 重新安装后独立导入并迁移至 0005_retention。原生 Harness SDK 未装导致的跳过未隐瞒。
+- 真实供应商：HTTP 与 HTTPS 各验证两账号两会话并行、SSE 主动断开补发；最终 HTTPS 两运行均在完成前收到正文（各 2 次模型/1 次工具），认证快照 20 次 p95 约 4.83 ms。在线事件到达与重连积压年龄分开记录，未采集浏览器首帧，不宣称长期容量保证。
+- 浏览器证据：实际登录/提问、Markdown 表格、时间工具、生成期间刷新恢复、跨账号拒绝、管理员筛选和逐调用展开均通过；截图 `.local/web-chat-acceptance.png`、`.local/web-admin-acceptance.png`。刷新后会话仍仅两问题对应两运行，控制台最终没有 error/warn。
+- 容器恢复证据：实际在线一致备份，Worker 在线拒绝恢复；停止 Worker 后另一个容器仍检测到 API 文件锁而拒绝恢复；全部停止后恢复成功、自动生成回滚备份、重放删除、旧 Cookie 撤销，已删除会话仍为 404。报告 `.local/web-container-restore.json`。
+- 最终验收汇总及边界见 `docs/WEB_ACCEPTANCE.md`，部署及回滚命令见 `docs/WEB_DEPLOYMENT.md`。交付范围已按用户确认关闭：本机 HTTPS 可连接，内网配置仅作备用，不再作为本轮待办。
+- 收尾：文档本地链接检查无断链，compileall 与 git diff --check 通过；QA/受控基准项目已停止且保留卷，主 HTTPS 项目三个服务均 healthy。未执行提交或改动原业务卷。
+- 用户确认仅本机交付后的复核：Docker Desktop Linux 引擎及回环绑定正确；`https://localhost:8443/` 和 `/api/v1/health` 均返回 200，API/Worker/入口均 healthy。第 07 项关闭，当前剩余任务为 0。

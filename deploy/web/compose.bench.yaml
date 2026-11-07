@@ -1,0 +1,16 @@
+# Dedicated repeatable TLS/SSE benchmark; no model credentials or external calls.
+services:
+  api:
+    environment:
+      FIN_WEB_ORIGIN: https://localhost:8445
+  worker:
+    env_file: !reset []
+    environment:
+      FIN_WEB_ORIGIN: https://localhost:8445
+    volumes:
+      - ./tests:/app/tests:ro
+    entrypoint: [python, -c]
+    command:
+      - "from fin_agent.web.worker import Worker; from fin_agent.web.settings import Settings; from tests.test_web_runs import streaming_factory; Worker(Settings.from_env(), factory=streaming_factory).serve()"
+  web:
+    ports: !override ['127.0.0.1:8445:8443']

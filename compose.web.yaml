@@ -1,0 +1,80 @@
+name: fin-agent-web
+x-backend: &backend
+  image: fin-agent-web-backend:${FIN_WEB_TAG:-local}
+  build:
+    context: .
+    dockerfile: Dockerfile.web
+    target: backend
+  init: true
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  volumes: [web-data:/data]
+  environment: &settings
+    FIN_WEB_DATABASE: /data/web.sqlite3
+    FIN_WEB_ORIGIN: ${FIN_WEB_ORIGIN:-https://localhost:8443}
+    FIN_WEB_CONCURRENCY: '2'
+    FIN_WEB_QUEUE_LIMIT: '16'
+    FIN_WEB_RUN_TIMEOUT: '300'
+    FIN_WEB_TRACE_DAYS: '30'
+    FIN_WEB_EVENT_HOURS: '24'
+    FIN_WEB_BACKUP_DAYS: '7'
+  networks: [web]
+services:
+  migrate:
+    <<: *backend
+    command: [migrate]
+    restart: 'no'
+  api:
+    <<: *backend
+    command: [serve, --host, 0.0.0.0]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -m, fin_agent.web, health, api]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+  worker:
+    <<: *backend
+    command: [worker]
+    env_file: [.local/web-service.env]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: [CMD, python, -m, fin_agent.web, health, worker]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+  web:
+    image: fin-agent-web-frontend:${FIN_WEB_TAG:-local}
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: frontend
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ${FIN_WEB_TLS_DIR:-./.local/web-tls}:/etc/fin-tls:ro
+    ports: ['${FIN_WEB_BIND:-127.0.0.1}:${FIN_WEB_PORT:-8443}:8443']
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+    networks: [web]
+    healthcheck:
+      test: [CMD, wget, -q, --spider, --no-check-certificate, https://127.0.0.1:8443/healthz]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+networks:
+  web: {}
+volumes:
+  web-data: {}

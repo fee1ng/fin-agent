@@ -3,4 +3,6 @@ include LICENSE
 include README.md
 include requirements.txt
 include requirements-harness.txt
+include requirements-web.txt
 recursive-include fin_agent/agent *.mjs
+recursive-include fin_agent/web/migrations *.py

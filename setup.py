@@ -15,6 +15,9 @@ if os.path.exists(req_path):
         requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
 
 version_path = os.path.join(here, "VERSION")
+with open(os.path.join(here, "requirements-web.txt"), encoding="utf-8") as web_file:
+    web_requirements = [line.strip() for line in web_file
+                        if line.strip() and not line.startswith(("#", "-r"))]
 if os.path.exists(version_path):
     with open(version_path, "r", encoding="utf-8") as fh:
         version = fh.read().strip()
@@ -29,7 +32,8 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
-    package_data={"fin_agent.agent": ["*.mjs"]},
+    package_data={"fin_agent.agent": ["*.mjs"],
+                  "fin_agent.web": ["migrations/*.py", "migrations/versions/*.py"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -37,9 +41,11 @@ setup(
     ],
     python_requires=">=3.10",
     install_requires=requirements,
+    extras_require={"web": web_requirements},
     entry_points={
         "console_scripts": [
             "fin-agent=fin_agent.main:main",
+            "fin-agent-web=fin_agent.web.__main__:main",
         ],
     },
 )

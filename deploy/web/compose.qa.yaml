@@ -1,0 +1,15 @@
+services:
+  api:
+    environment:
+      FIN_WEB_ORIGIN: http://127.0.0.1:8180
+      FIN_WEB_DEV_HTTP: '1'
+  worker:
+    environment:
+      FIN_WEB_ORIGIN: http://127.0.0.1:8180
+      FIN_WEB_DEV_HTTP: '1'
+  web:
+    volumes:
+      - ./deploy/web/nginx.qa.conf:/etc/nginx/nginx.conf:ro
+    ports: !override ['127.0.0.1:8180:8443']
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8443/healthz]

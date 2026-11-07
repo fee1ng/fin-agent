@@ -4,3 +4,8 @@ __pycache__/
 dist/
 *.egg-info/
 .local/
+node_modules/
+frontend/coverage/
+*.tsbuildinfo
+build/
+.pnpm-store/

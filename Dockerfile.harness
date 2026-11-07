@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TZ=Asia/Shanghai
 WORKDIR /app
 COPY .local/harness-wheels /tmp/harness-wheels
-COPY requirements.txt requirements-harness.txt ./
+COPY requirements.txt requirements-harness.txt requirements-web.txt ./
 RUN pip install --no-index --find-links=/tmp/harness-wheels -r requirements.txt -r requirements-harness.txt \
     && pip check \
     && rm -rf /tmp/harness-wheels

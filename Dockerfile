@@ -10,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TZ=Asia/Shanghai
 
 WORKDIR /app
-COPY requirements.txt requirements-harness.txt ./
+COPY requirements.txt requirements-harness.txt requirements-web.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-harness.txt
 COPY setup.py VERSION README.md LICENSE MANIFEST.in ./
 COPY fin_agent ./fin_agent

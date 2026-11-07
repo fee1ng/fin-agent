@@ -30,7 +30,13 @@ FORCED_STOP_MESSAGE = (
 
 
 class FinAgent:
-    def __init__(self, max_steps: int = None, max_time: float = None):
+    def __init__(self, max_steps: int = None, max_time: float = None, *,
+                 tool_schemas=None, tool_executor=None, system_prompt=None,
+                 observer=None):
+        self.tool_schemas = TOOLS_SCHEMA if tool_schemas is None else tool_schemas
+        self.tool_executor = tool_executor
+        self.system_prompt = system_prompt
+        self.observer = observer
         self.max_steps = max_steps if max_steps is not None else Config.AGENT_MAX_STEPS
         self.max_time  = max_time  if max_time  is not None else Config.AGENT_MAX_TIME
         self.llm = self._create_llm()
@@ -84,7 +90,7 @@ class FinAgent:
                          ──(tool_calls, limit exceeded)──→ wrap_up → END
         """
         def agent_node(state: AgentState) -> dict:
-            response = self.llm.bind_tools(TOOLS_SCHEMA).invoke(state["messages"])
+            response = self.llm.bind_tools(self.tool_schemas).invoke(state["messages"])
             return {"messages": [response], "step_count": state.get("step_count", 0) + 1}
 
         def tools_node(state: AgentState) -> dict:
@@ -92,7 +98,11 @@ class FinAgent:
             results = []
             for tc in last.tool_calls:
                 try:
-                    result = execute_tool_call(tc["name"], json.dumps(tc["args"]))
+                    executor = self.tool_executor if self.tool_executor is not None else execute_tool_call
+                    if self.tool_executor is not None and hasattr(executor, 'execute_call'):
+                        result = executor.execute_call(tc)
+                    else:
+                        result = executor(tc["name"], json.dumps(tc["args"]))
                     if tc["name"] == "reset_core_config":
                         self.llm = self._create_llm()
                 except Exception as exc:
@@ -164,6 +174,8 @@ class FinAgent:
         )
 
     def _get_system_content(self):
+        if self.system_prompt is not None:
+            return self.system_prompt
         # Get user profile summary
         user_profile_summary = get_profile_manager().get_profile_summary()
         datasource_note = self._get_datasource_note()
@@ -449,6 +461,11 @@ class FinAgent:
         thinking_state = False
         final_content = ""  # accumulates current agent-round text for "answer" event
         _wrap_up_logged = False
+        output_message_id = None
+
+        def output_identity():
+            # Web opts into message identity; keep the existing CLI event shape.
+            return {"message_id": output_message_id} if self.observer is not None and output_message_id else {}
 
         try:
             for event_type, data in self.graph.stream(
@@ -458,7 +475,8 @@ class FinAgent:
                     "start_time": time.time(),
                 },
                 stream_mode=["messages", "updates"],
-                config={"recursion_limit": max(25, self.max_steps * 2 + 3)},
+                config={"recursion_limit": max(25, self.max_steps * 2 + 3),
+                        **({"callbacks": [self.observer]} if self.observer is not None else {})},
             ):
 
                 # ── "messages" → real-time streaming chunks ──────────────
@@ -468,6 +486,8 @@ class FinAgent:
 
                     # Agent / wrap_up node: AIMessageChunk from LLM
                     if node in ("agent", "wrap_up") and isinstance(chunk, AIMessageChunk):
+                        if chunk.id:
+                            output_message_id = chunk.id
                         # Log once when wrap_up starts
                         if node == "wrap_up" and not _wrap_up_logged:
                             _wrap_up_logged = True
@@ -482,7 +502,7 @@ class FinAgent:
                                 if ev_type == "log":
                                     yield {"type": "log", "content": ev_text}
                                 else:
-                                    yield {"type": ev_type, "content": ev_text}
+                                    yield {"type": ev_type, "content": ev_text, **output_identity()}
 
                         # Tool-call chunks — real-time display while LLM assembles the call
                         # (wrap_up uses bare LLM without tools, so tool_call_chunks only from agent)
@@ -492,6 +512,7 @@ class FinAgent:
                                 yield {
                                     "type": "thinking" if thinking_state else "content",
                                     "content": buffer,
+                                    **output_identity(),
                                 }
                                 buffer = ""
                             for tc in chunk.tool_call_chunks:
@@ -518,6 +539,7 @@ class FinAgent:
                                         "type": "tool_call",
                                         "tool_name": tc["name"],
                                         "args": json.dumps(tc["args"]),
+                                        **output_identity(),
                                     }
                                 # Persist to history
                                 self.history.append(self._ai_msg_to_dict(msg))
@@ -548,10 +570,11 @@ class FinAgent:
                 yield {
                     "type": "thinking" if thinking_state else "content",
                     "content": buffer,
+                    **output_identity(),
                 }
 
             # Signal completion with final answer text
-            yield {"type": "answer", "content": final_content}
+            yield {"type": "answer", "content": final_content, **output_identity()}
 
         except KeyboardInterrupt:
             yield {"type": "error", "content": "Interrupted by user"}
