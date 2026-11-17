@@ -1,11 +1,53 @@
-__pycache__/
+# Local configuration and credentials (keep distributable examples).
 .env
+.env.*
+!.env.example
+!.env.*.example
 .pypitoken
-dist/
+/.local/
+
+# Python dependencies, bytecode and build output.
+__pycache__/
+*.py[cod]
 *.egg-info/
-.local/
-node_modules/
-frontend/coverage/
-*.tsbuildinfo
+.venv/
+venv/
 build/
+dist/
+
+# Frontend dependencies and generated output.
+node_modules/
 .pnpm-store/
+*.tsbuildinfo
+
+# Tests, fixtures and reports are maintained locally.
+/tests/
+/frontend/src/**/*.test.*
+/frontend/src/**/*.spec.*
+/frontend/src/test-setup.ts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage/
+htmlcov/
+test-results/
+playwright-report/
+
+# Project documentation and planning files are maintained locally.
+# Keep README.md, LICENSE, AGENTS.md and agnets.md as repository entries.
+/docs/
+/ROADMAP.md
+
+# Editor settings, runtime data and temporary artifacts.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.tmp
+*.swp
