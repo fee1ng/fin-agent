@@ -1,0 +1,8 @@
+{
+  "name": "fin-agent-observability",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@loongsuite/dsh-plugin": "0.1.3"
+  }
+}

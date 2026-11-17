@@ -1,6 +1,11 @@
 *
 !Dockerfile
 !Dockerfile.harness
+!Dockerfile.observability
+!deploy/
+!deploy/observability/
+!deploy/observability/package.json
+!deploy/observability/package-lock.json
 !.local/
 .local/**
 !.local/harness-wheels/

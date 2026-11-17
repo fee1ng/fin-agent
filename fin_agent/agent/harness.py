@@ -27,9 +27,10 @@ class HarnessAgent:
         self.redactor = Redactor((self.api_key, Config.TUSHARE_TOKEN, Config.EMAIL_PASSWORD,
                                   Config.OPENAI_API_KEY))
 
-    def _runtime(self, session_id):
+    def _runtime(self, session_id: str, run_id: str) -> HarnessRuntime:
         return HarnessRuntime(self.store.directory / "runtime" / session_id,
-                              api_key=self.api_key, base_url=self.base_url, model=self.model)
+                              api_key=self.api_key, base_url=self.base_url,
+                              model=self.model, run_id=run_id)
 
     def stream_chat(self, user_input, *, input_id=None):
         session_id = self.session_id
@@ -90,7 +91,7 @@ class HarnessAgent:
                     self.store.append("native_turn", run_id=run_id, turn=turn, native_seq=event["seq"])
 
             try:
-                with self._runtime(session_id) as runtime:
+                with self._runtime(session_id, run_id) as runtime:
                     native_root = runtime.directory / "native" / "sessions"
                     if any(native_root.glob(f"*/{session_id}/session.v4.jsonl")):
                         runtime.resume(session_id)

@@ -1,0 +1,16 @@
+ARG BASE_IMAGE=fin-agent:harness-latest
+FROM node:24-alpine AS observability
+WORKDIR /opt/fin-agent-observability
+COPY deploy/observability/package*.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
+FROM ${BASE_IMAGE}
+USER root
+COPY --from=observability /opt/fin-agent-observability /opt/fin-agent-observability
+WORKDIR /app
+COPY setup.py VERSION README.md LICENSE MANIFEST.in ./
+COPY requirements.txt requirements-harness.txt requirements-web.txt ./
+COPY fin_agent ./fin_agent
+RUN pip install --no-deps --no-build-isolation .
+USER app
+ENV FIN_AGENT_OBSERVABILITY=false

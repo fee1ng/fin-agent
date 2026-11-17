@@ -13,7 +13,11 @@ class HarnessStorageError(RuntimeError):
 
 
 class HarnessRuntime:
-    def __init__(self, directory, *, api_key, base_url, model, cwd=None, ack_timeout=15, tools="*"):
+    def __init__(
+        self, directory: str | Path, *, api_key: str, base_url: str,
+        model: str, cwd: str | Path | None = None, ack_timeout: float = 15,
+        tools: str = "*", run_id: str | None = None,
+    ) -> None:
         from importlib.metadata import version
         from deepseek_harness import DeepSeekHarness
 
@@ -23,7 +27,9 @@ class HarnessRuntime:
         self.directory = Path(directory).resolve()
         cwd = Path(cwd or Path.cwd()).resolve()
         profile, self.profile_hash = write_profile(
-            self.directory, base_url=base_url, model=model, cwd=cwd, tools=tools)
+            self.directory, base_url=base_url, model=model, cwd=cwd,
+            tools=tools, run_id=run_id,
+        )
         self.ack_timeout = ack_timeout
         self._lock = threading.Lock()
         self.sdk = DeepSeekHarness(

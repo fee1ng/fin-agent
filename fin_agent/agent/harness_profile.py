@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import sys
 
+from fin_agent.agent import observability_config
+
 
 SDK_VERSION = "0.2.1rc2"
 UPSTREAM_COMMIT = "687f282e8625c6b8d11ff58211a90524be2e4317"
@@ -17,7 +19,14 @@ def status_for_finish(reason):
             'forked': 'interrupted'}.get(reason, 'interrupted')
 
 
-def write_profile(directory, *, base_url, model, cwd, max_tokens=4096, tools="*"):
+def write_profile(
+    directory: str | Path, *, base_url: str, model: str, cwd: str | Path,
+    max_tokens: int = 4096, tools: str = "*", run_id: str | None = None,
+) -> tuple[Path, str]:
+    """Write the runtime profile and return its path and SHA-256 digest.
+
+    Credentials remain in process environment rather than the profile file.
+    """
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     disabled = (
@@ -54,6 +63,9 @@ def write_profile(directory, *, base_url, model, cwd, max_tokens=4096, tools="*"
             "failOnStartupError": True,
         }},
     ]})
+    observation = observability_config.plugin_row(run_id)
+    if observation is not None:
+        rows[-1]["insert"].append(observation)
     content = json.dumps(rows, ensure_ascii=False, indent=2).encode("utf-8")
     profile = directory / "finance.patch.yml"
     profile.write_bytes(content)

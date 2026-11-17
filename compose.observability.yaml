@@ -1,0 +1,46 @@
+# Standalone development service with its own data volume.
+services:
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.23.0
+    ports:
+      - "127.0.0.1:16686:16686"
+    restart: unless-stopped
+  harness-observability:
+    image: fin-agent:harness-observability
+    build:
+      context: .
+      dockerfile: Dockerfile.observability
+    env_file:
+      - path: .local/observability.env
+        required: false
+    environment:
+      FIN_AGENT_OBSERVABILITY: "true"
+      OTEL_SERVICE_NAME: fin-agent-local
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
+      OTEL_EXPORTER_OTLP_HEADERS: ""
+      OTEL_EXPORTER_OTLP_TRACES_HEADERS: ""
+      OTEL_METRICS_EXPORTER: none
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
+    depends_on:
+      - jaeger
+    stdin_open: true
+    tty: true
+    volumes:
+      - observability-dev-data:/data
+  smoke:
+    image: fin-agent:harness-observability
+    profiles: [test]
+    entrypoint: [python, -m, tests.local_observability_smoke]
+    environment:
+      FIN_AGENT_OBSERVABILITY: "true"
+      OTEL_SERVICE_NAME: fin-agent-local
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
+      OTEL_METRICS_EXPORTER: none
+    depends_on:
+      - jaeger
+    volumes:
+      - ./tests:/app/tests:ro
+
+volumes:
+  observability-dev-data:
